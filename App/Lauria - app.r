@@ -743,10 +743,8 @@ server <- function(input, output, session) {
         pull(Species)
     } else if (input$species_order == "Guild") {
       #THIS WILL NOT WORK AUTOMATICALLY WITH NEW GUILDS/SPECIES, needs to be changed.
-      c("Cod","Whiting", "European Hake","Monkfish","Haddock","Common Dab","Poor Cod",
-        "Plaice","Megrim","Sole","Blue Whiting","Herring","Sprat","Norway Pout","Horse Mackerel",
-        "Mackerel"
-      )
+      c("Herring","Cod", "Haddock","Whiting","Blue whiting","Hake","Monkfish",
+        "Mackerel","Plaice","Megrim","Sole")
     } else if (input$species_order == "Size") {
       #order by maturity size
       species_order <- data.frame(celticsim@species_params$species, celticsim@species_params$w_mat)%>%
@@ -1380,10 +1378,8 @@ ui <- fluidPage(
                 selectInput(
                   inputId = "species_name_select",
                   label = "Select a Species:",
-                  choices = c("Herring", "Sprat", 
-                              "Cod", "Haddock", "Whiting", "Blue whiting", "Norway Pout", "Poor Cod", 
-                              "European Hake", "Monkfish", "Horse Mackerel", "Mackerel", "Common Dab", 
-                              "Plaice", "Megrim", "Sole")
+                  choices = c("Herring","Cod", "Haddock","Whiting","Blue whiting","Hake","Monkfish",
+                              "Mackerel","Plaice","Megrim","Sole")
                 )%>%tagAppendAttributes(id = "species_chose"),
                 actionButton(inputId = "set_year_5", label = "5 Years", class = "btn-small"),
                 actionButton(inputId = "set_year_15", label = "15 Years", class = "btn-small"),
@@ -1499,10 +1495,8 @@ ui <- fluidPage(
                        selectInput(
                          inputId = "name_select",
                          label = "Select a Species:",
-                         choices = c("Herring", "Sprat", 
-                                     "Cod", "Haddock", "Whiting", "Blue whiting", "Norway Pout", "Poor Cod", 
-                                     "European Hake", "Monkfish", "Horse Mackerel", "Mackerel", "Common Dab", 
-                                     "Plaice", "Megrim", "Sole")
+                         choices = c("Herring","Cod", "Haddock","Whiting","Blue whiting","Hake","Monkfish",
+                                     "Mackerel","Plaice","Megrim","Sole")
                        )%>%tagAppendAttributes(id="species_choose_mort"),
                        actionButton(inputId = "mortset_year_5", label = "5 Years", class = "btn-small"),
                        actionButton(inputId = "mortset_year_15", label = "15 Years", class = "btn-small"),
@@ -1634,10 +1628,8 @@ ui <- fluidPage(
             selectInput(
               inputId = "breakname_select",
               label = "Select a Species:",
-              choices = c("Herring", "Sprat", 
-                          "Cod", "Haddock", "Whiting", "Blue whiting", "Norway Pout", "Poor Cod", 
-                          "European Hake", "Monkfish", "Horse Mackerel", "Mackerel", "Common Dab", 
-                          "Plaice", "Megrim", "Sole")
+              choices = c("Herring","Cod", "Haddock","Whiting","Blue whiting","Hake","Monkfish",
+                          "Mackerel","Plaice","Megrim","Sole")
             )%>%tagAppendAttributes(id = "breakname_select"),
             actionButton(inputId = "breakset_year_5", label = "5 Years", class = "btn-small"),
             actionButton(inputId = "breakset_year_15", label = "15 Years", class = "btn-small"),
@@ -1725,10 +1717,8 @@ ui <- fluidPage(
             selectInput(
               inputId = "breakname_select",
               label = "Select a Species:",
-              choices = c("Herring", "Sprat", 
-                          "Cod", "Haddock", "Whiting", "Blue whiting", "Norway Pout", "Poor Cod", 
-                          "European Hake", "Monkfish", "Horse Mackerel", "Mackerel", "Common Dab", 
-                          "Plaice", "Megrim", "Sole")
+              choices = c("Herring","Cod", "Haddock","Whiting","Blue whiting","Hake","Monkfish",
+                          "Mackerel","Plaice","Megrim","Sole")
             )%>%tagAppendAttributes(id = "breakname_select_mort"),
             actionButton(inputId = "breakset_year_5", label = "5 Years", class = "btn-small"),
             actionButton(inputId = "breakset_year_15", label = "15 Years", class = "btn-small"),
@@ -1815,10 +1805,8 @@ ui <- fluidPage(
             selectInput(
               inputId = "fish_name_select",
               label = "Select a Species:",
-              choices = c("Herring", "Sprat", 
-                          "Cod", "Haddock", "Whiting", "Blue whiting", "Norway Pout", "Poor Cod", 
-                          "European Hake", "Monkfish", "Horse Mackerel", "Mackerel", "Common Dab", 
-                          "Plaice", "Megrim", "Sole")
+              choices = c("Herring","Cod", "Haddock","Whiting","Blue whiting","Hake","Monkfish",
+                          "Mackerel","Plaice","Megrim","Sole")
             )%>%tagAppendAttributes(id = "fishy_choose"),
             selectInput(
               inputId = "species_order",
