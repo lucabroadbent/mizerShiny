@@ -11,7 +11,6 @@ library(tidyverse)
 library(forcats)
 library(shinyBS)
 library(rintrojs)
-library(patchwork)
 
 ##questions to ask 
 #we have smaller sizes for the guilds - can I just assume that anything of the very
@@ -418,6 +417,124 @@ server <- function(input, output, session) {
       mutate(percentage_diff = ((value.x - value.y) / value.y) * 100) %>%
       select(Species, percentage_diff) %>%
       filter(!Species %in% c("2", "4", "6", "8", "16", "17", "18", "19", "20", "Resource"))
+  }
+  
+  
+  #THis function plots the the yields as a pie chart of the species / fleet aggregations
+  #I should have a button underneath this to change it to plot on fleet basis - on species basis - separated fleet
+  
+  yieldplottingfunctions <- function(harvested, unharvested, timerange1, timerange2, plottype) {
+    
+    if (plottype == "fleet") {
+
+      #getting yield per gear then reformating to work with rest of the code,
+      #plus subsetting by year
+      
+      harv <- as.data.frame(as.table(getYieldGear(harvested)[c(timerange1, timerange2),,]))%>%
+        group_by(gear)%>%
+        summarise(value=mean(Freq))
+      
+      unharv <-as.data.frame(as.table(getYieldGear(unharvested)[c(timerange1, timerange2),,]))%>%
+        group_by(gear)%>%
+        summarise(value=mean(Freq))
+
+      fig <- plot_ly()
+      fig <- fig %>% add_pie(data = harv, labels = ~gear, values = ~value,
+                             name = "harv", domain = list(row = 0, column = 0))
+      fig <- fig %>% add_pie(data = unharv, labels = ~gear, values = ~value,
+                             name = "unharv", domain = list(row = 0, column = 1))
+      
+      fig <- fig %>% layout(showlegend = T,
+                            grid=list(rows=2, columns=2),
+                            xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                            yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+      fig
+
+    } else if (plottype == "species") {
+
+      harv <- as.data.frame(as.table(getYield(harvested)[c(timerange1, timerange2),]))%>%
+        group_by(sp)%>%
+        summarise(value=mean(Freq))%>%
+        rename(gear = sp)
+      
+      unharv <- as.data.frame(as.table(getYield(unharvested)[c(timerange1, timerange2),]))%>%
+        group_by(sp)%>%
+        summarise(value=mean(Freq))%>%
+        rename(gear = sp)
+      
+      fig <- plot_ly()
+      fig <- fig %>% add_pie(data = harv, labels = ~gear, values = ~value,
+                             name = "harv", domain = list(row = 0, column = 0))
+      fig <- fig %>% add_pie(data = unharv, labels = ~gear, values = ~value,
+                             name = "unharv", domain = list(row = 0, column = 1))
+      
+      fig <- fig %>% layout(showlegend = T,
+                            grid=list(rows=2, columns=2),
+                            xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                            yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+      fig
+      
+    } else if (plottype == "singlefleet") {
+
+      harv <- as.data.frame(as.table(getYieldGear(harvested)[c(timerange1, timerange2),,]))
+      unharv <-as.data.frame(as.table(getYieldGear(unharvested)[c(timerange1, timerange2),,]))
+
+      harv <- split(harv, harv$gear)
+      unharv <- split(unharv, unharv$gear)
+      
+      pie_charts <- list()
+      unpie_charts <- list()
+      
+      for (gear_name in names(harv)) {
+        
+        averaged_data <- harv[[gear_name]] %>%
+          group_by(sp) %>%
+          summarise(value = mean(Freq))
+        colnames(averaged_data) <- c("gear", "value")
+        
+        pie_charts[[gear_name]] <- create_pie_chart(averaged_data, "")+
+          labs(title=   gear_name)+
+          theme(plot.title = element_text(hjust = 0.5)) 
+        
+      }
+      for (gear_name in names(unharv)) {
+        
+        averaged_data <- unharv[[gear_name]] %>%
+          group_by(sp) %>%
+          summarise(value = mean(Freq))
+        colnames(averaged_data) <- c("gear", "value")
+        
+        unpie_charts[[gear_name]] <- create_pie_chart(averaged_data, "")
+        
+      }
+      
+      #making sure there is only one legend
+      for (i in 2:length(pie_charts)) {
+        pie_charts[[i]] <- pie_charts[[i]] + theme(legend.position = "none")
+      }
+      for (i in 1:length(unpie_charts)) {
+        unpie_charts[[i]] <- unpie_charts[[i]] + theme(legend.position = "none")
+      }
+      
+      # Separate the top and bottom rows of pie charts
+      # Combine the top row with a "Current" label
+      top_row <- wrap_plots(pie_charts, ncol = length(harv)) +
+        plot_annotation(title = "Current", theme = theme(plot.title = element_text(hjust = 0.5)))
+      
+      # Combine the bottom row (no label)
+      bottom_row <- wrap_plots(unpie_charts, ncol = length(harv))
+      
+      # Combine top and bottom rows into one plot, ensuring only the top row has the label
+      combined_plot <- (top_row / bottom_row) + plot_layout(guides = "collect")
+      
+      # Display the combined plot
+      print(combined_plot)
+      
+    } else {
+      
+      stop("Invalid plot type specified")
+    }
+    
   }
   
   
@@ -986,7 +1103,7 @@ server <- function(input, output, session) {
     
     # Return all results as a list
     list(
-      harvestedprojection = harvestedprojection,
+      unharvestedprojection = unharvestedprojection,
       sizelevel = sizelevel,
       specieslevel = specieslevel,
       guildlevel = guildlevel,
@@ -997,16 +1114,8 @@ server <- function(input, output, session) {
     )
   })
   
-  #this is required to be on its own so that it is able to be changed by fish name select without running everything else.
   dietsingle <- reactive({
-    harvestedprojection <- spectra()$harvestedprojection
-    
-    #subsetting to plot the correct year
-    harvestedprojection@n <- harvestedprojection@n[input$fishyear[1]:input$fishyear[2],,]
-    harvestedprojection@n_pp <- harvestedprojection@n_pp[input$fishyear[1]:input$fishyear[2],]
-    harvestedprojection@n_other <- harvestedprojection@n_other[input$fishyear[1]:input$fishyear[2],]
-    
-    plotDiet(harvestedprojection@params, species = input$fish_name_select)
+    plotDiet(spectra()$harvestedprojection@params, species = input$fish_name_select)
   })
   
   
@@ -1990,31 +2099,32 @@ ui <- fluidPage(
                         that a given prey species makes up at that given predator size."),
                       br(),
                       h4(HTML("Select a Species to Plot")),
-                      selectInput(
-                        inputId = "fish_name_select",
-                        label = NULL,
-                        choices = NULL
-                      )
-                    ),
-                    
-                    # Conditional panel for "Biomass"
-                    conditionalPanel(
-                      condition = "input.fishy_plots == 'Biomass'",
-                      h4("Legend"),
-                      p("Biomass of species over time. Color indicates the species, X axis is the time,
+                         selectInput(
+                           inputId = "fish_name_select",
+                           label = NULL,
+                           choices = NULL
+                         )
+                      ),
+                      
+                      # Conditional panel for "Biomass"
+                      conditionalPanel(
+                        condition = "input.fishy_plots == 'Biomass'",
+                        h4("Legend"),
+                        p("Biomass of species over time. Color indicates the species, X axis is the time,
                         Y axis is the value of biomass.")
+                      )
                     )
                   )
         )
-      )
-    ),
-    nav_spacer(),
-    nav_item(
-      actionButton("start_tutorial", "Guide", class = "btn btn-primary",
-                   style = "margin-right: 20px;
+      ),
+      nav_spacer(),
+      nav_item(
+        actionButton("start_tutorial", "Guide", class = "btn btn-primary",
+                     style = "margin-right: 20px;
                  padding: 5px 5px;")
-    ),
+      ),
+    )
   )
-)
-
-shinyApp(ui = ui, server = server)
+  
+  shinyApp(ui = ui, server = server)
+  
