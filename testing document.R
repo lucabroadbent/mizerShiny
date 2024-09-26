@@ -482,53 +482,43 @@ server <- function(input, output, session) {
       harv <- split(harv, harv$gear)
       unharv <- split(unharv, unharv$gear)
       
-      pie_charts <- list()
-      unpie_charts <- list()
+      fig <- plot_ly()
       
-      for (gear_name in names(harv)) {
+      for (i in seq_along(harv)) {
+        
+        gear_name <- names(harv)[i] 
         
         averaged_data <- harv[[gear_name]] %>%
           group_by(sp) %>%
           summarise(value = mean(Freq))
         colnames(averaged_data) <- c("gear", "value")
-        
-        pie_charts[[gear_name]] <- create_pie_chart(averaged_data, "")+
-          labs(title=   gear_name)+
-          theme(plot.title = element_text(hjust = 0.5)) 
+
+        fig <- fig %>% add_pie(data = averaged_data, labels = ~gear, values = ~value,
+                               textinfo = "none",
+                               name = gear_name, domain = list(row = 0, column = i))
         
       }
-      for (gear_name in names(unharv)) {
+      for (i in seq_along(unharv)) {
+        
+        gear_name <- names(unharv)[i] 
         
         averaged_data <- unharv[[gear_name]] %>%
           group_by(sp) %>%
           summarise(value = mean(Freq))
         colnames(averaged_data) <- c("gear", "value")
+
         
-        unpie_charts[[gear_name]] <- create_pie_chart(averaged_data, "")
+        fig <- fig %>% add_pie(data = averaged_data, labels = ~gear, values = ~value,
+                               textinfo = "inside",
+                               name = gear_name, domain = list(row = 1, column = i))
         
       }
       
-      #making sure there is only one legend
-      for (i in 2:length(pie_charts)) {
-        pie_charts[[i]] <- pie_charts[[i]] + theme(legend.position = "none")
-      }
-      for (i in 1:length(unpie_charts)) {
-        unpie_charts[[i]] <- unpie_charts[[i]] + theme(legend.position = "none")
-      }
-      
-      # Separate the top and bottom rows of pie charts
-      # Combine the top row with a "Current" label
-      top_row <- wrap_plots(pie_charts, ncol = length(harv)) +
-        plot_annotation(title = "Current", theme = theme(plot.title = element_text(hjust = 0.5)))
-      
-      # Combine the bottom row (no label)
-      bottom_row <- wrap_plots(unpie_charts, ncol = length(harv))
-      
-      # Combine top and bottom rows into one plot, ensuring only the top row has the label
-      combined_plot <- (top_row / bottom_row) + plot_layout(guides = "collect")
-      
-      # Display the combined plot
-      print(combined_plot)
+      fig <- fig %>% layout(showlegend = T,
+                            grid=list(rows=2, columns=length(harv)),
+                            xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                            yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+      fig
       
     } else {
       
