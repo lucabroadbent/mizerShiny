@@ -326,14 +326,11 @@ server <- function(input, output, session) {
   #here is the unharvested simulation to be used throughout for comparison
   #tmax is 200 because the maximum time to set on the sliders is 100, and 
   #for the species plots with the time range, it needs to be 2 times this amount.
-  progress <- shiny::Progress$new()
-  on.exit(progress$close())
-  progress$set(message = "Initialising model...", value = 0)
+  #it uses fishing strategies of 0,1,1,1 for each fleet.
   
-  unharvestedprojection <- project(celticsim,
-                                   effort = c(commercial = 0, pelagic = 1, beam = 1, otter = 1),
-                                   t_max = 200, 
-                                   progress_bar = progress)
+  load("unharvestedprojection")
+  
+  
   
   #This section contains all the functions to be used
   
@@ -572,9 +569,9 @@ server <- function(input, output, session) {
     process_guilds <- function(harvested2) {
       
       
-      find_guild <- function(w, species, guildparams) {
-        matched <- guildparams %>%
-          filter(Species == species, w >= minw, w < maxw)
+      find_guild <- function(w, species_rules) {
+        matched <- species_rules %>%
+          filter(w >= minw, w < maxw)
         
         if (nrow(matched) > 0) {
           return(matched$Feeding.guild)
@@ -583,13 +580,16 @@ server <- function(input, output, session) {
         }
       }
       
+      # Group by species, find species-specific rules, and assign guilds
       result <- harvested2 %>%
-        rowwise() %>%
-        mutate(Guild = find_guild(w, Species, guildparams)) %>%
+        group_by(Species) %>%
+        mutate(
+          Guild = sapply(w, function(weight) find_guild(weight, guildparams %>% filter(Species == Species)))
+        ) %>%
         ungroup() %>%
-        drop_na(Guild)%>% 
-        group_by(Guild)%>%
-        summarise(value=mean(value))%>%
+        drop_na(Guild) %>%
+        group_by(Guild) %>%
+        summarise(value = mean(value)) %>%
         distinct()
       
       

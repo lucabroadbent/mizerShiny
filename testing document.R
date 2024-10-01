@@ -11,6 +11,7 @@ library(tidyverse)
 library(forcats)
 library(shinyBS)
 library(rintrojs)
+library(patchwork)
 
 ##questions to ask 
 #we have smaller sizes for the guilds - can I just assume that anything of the very
@@ -461,7 +462,7 @@ server <- function(input, output, session) {
         group_by(sp)%>%
         summarise(value=mean(Freq))%>%
         rename(gear = sp)
-      
+
       fig <- plot_ly()
       fig <- fig %>% add_pie(data = harv, labels = ~gear, values = ~value,
                              name = "harv", domain = list(row = 0, column = 0))
@@ -472,7 +473,7 @@ server <- function(input, output, session) {
                             grid=list(rows=2, columns=2),
                             xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
                             yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
-      fig
+      return(fig)
       
     } else if (plottype == "singlefleet") {
 
