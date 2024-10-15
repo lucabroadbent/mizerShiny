@@ -13,15 +13,6 @@ library(shinyBS)
 library(rintrojs)
 library(patchwork)
 
-##questions to ask 
-#we have smaller sizes for the guilds - can I just assume that anything of the very
-#small size classes is planktivorous? - for example anything smaller than 0.5g?
-#otherwise, there is big problems - we miss out a lot of the spectrum -
-#and to include some size resolution in the plot, we have to do weird things.
-#currently this is the entire size spectrum range in mizer logged and 1/3.
-#there are none in the smallest size class - but if we do not log and just take 1/3
-#then everything is in the smallest size class. 
-
 server <- function(input, output, session) {
   
   
@@ -272,6 +263,7 @@ server <- function(input, output, session) {
   #loading in the model 
   celticsim <- readRDS("Celtic_16_untuned.rds")
   
+  
   #changing the species options to dynamically change depending on the model
   
   species_list <- reactive({
@@ -279,7 +271,8 @@ server <- function(input, output, session) {
   })
   
   species_input_ids <- c("species_name_select", "name_select",
-                         "breakname_select","fish_name_select")  
+                         "breakname_select","fish_name_select", 
+                         "breakname_select_mort")  
   
   observe({
     lapply(species_input_ids, function(id) {
@@ -288,27 +281,39 @@ server <- function(input, output, session) {
   })
   
   
-  
   #This section has all the buttons for the years to change
+  #Right now, the time range that is plotted is a 3 year period around the year selected.
+  #This includes the year chosen, so for example button 3 will plots the years 2,3,4.
+  
   
   observeEvent(input$set_year_5, {
-    updateSliderInput(session, "year", value = c(5, 5))
+    updateSliderInput(session, "year", value = c(2, 4))
   })
   observeEvent(input$set_year_15, {
-    updateSliderInput(session, "year", value = c(15, 15))
+    updateSliderInput(session, "year", value = c(5, 7))
   })
   observeEvent(input$set_year_30, {
-    updateSliderInput(session, "year", value = c(30, 30))
+    updateSliderInput(session, "year", value = c(11, 13))
+  })
+  
+  observeEvent(input$fish_set_year_5, {
+    updateSliderInput(session, "year", value = c(2, 4))
+  })
+  observeEvent(input$fish_set_year_15, {
+    updateSliderInput(session, "year", value = c(5, 7))
+  })
+  observeEvent(input$fish_set_year_30, {
+    updateSliderInput(session, "year", value = c(11, 13))
   })
   
   observeEvent(input$mortset_year_5, {
-    updateSliderInput(session, "mortyear", value = c(5, 5))
+    updateSliderInput(session, "mortyear", value = c(2, 4))
   })
   observeEvent(input$mortset_year_15, {
-    updateSliderInput(session, "mortyear", value = c(15, 15))
+    updateSliderInput(session, "mortyear", value = c(5, 7))
   })
   observeEvent(input$mortset_year_30, {
-    updateSliderInput(session, "mortyear", value = c(30, 30))
+    updateSliderInput(session, "mortyear", value = c(11,13))
   })
   
   observeEvent(input$breakset_year_5, {
@@ -328,8 +333,11 @@ server <- function(input, output, session) {
   #for the species plots with the time range, it needs to be 2 times this amount.
   #it uses fishing strategies of 0,1,1,1 for each fleet.
   
-  load("unharvestedprojection")
+  #load("unharvestedprojection")
+  #This doesnt work, because theyre adding a new model means it will need to be changed
   
+  unharvestedprojection <- project(celticsim, t_max = 200,
+                                   effort = )
   
   
   #This section contains all the functions to be used
@@ -418,8 +426,7 @@ server <- function(input, output, session) {
   }
   
   
-  
-  
+
   #This function plots the species plot - which the change in species for a given 
   #year, and also for 2x in future and 1/3 year in the past.
   
@@ -445,35 +452,43 @@ server <- function(input, output, session) {
   #' percentdiff(harvested, unharvested)
   #'
   #' @export
-  plotSpeciesWithTimeRange <- function(harvestedprojection, unharvestedprojection, chosentime) {
+  plotSpeciesWithTimeRange <- function(harvestedprojection, unharvestedprojection, chosentime1, chosentime2) {
     
     #get the biomass of the species
     unharvestedbio <- getBiomass(unharvestedprojection) %>%
-      .[chosentime, ] %>%
+      .[chosentime1:chosentime2, ] %>% 
       melt() %>%
-      rownames_to_column(var = "Species")
+      rownames_to_column(var = "Species") %>%
+      group_by(Species) %>%
+      summarize(value = mean(value, na.rm = TRUE))
     
     harvestedbio <- getBiomass(harvestedprojection) %>%
-      .[chosentime, ] %>%
+      .[chosentime1:chosentime2, ] %>% 
       melt() %>%
-      rownames_to_column(var = "Species")
+      rownames_to_column(var = "Species") %>%
+      group_by(Species) %>%
+      summarize(value = mean(value, na.rm = TRUE))
     
     #calculate percentage change in species in the chosen year
     percentage_diff <- percentdiff(harvestedbio, unharvestedbio)
     percentage_diff$class <- "chosen"
     
-    calculate_biomass_triples <- function(unharvestedprojection, harvestedprojection, year) {
+    calculate_biomass_triples <- function(unharvestedprojection, harvestedprojection, year1, year2) {
       
       # Calculate unharvested biomass at different time points
       unharvestedbiotriple <- getBiomass(unharvestedprojection)
       
-      lowunbiotrip <- unharvestedbiotriple[max(1, round(year * (1/2))), ] %>%
+      lowunbiotrip <- unharvestedbiotriple[max(1, round(year1 * (1/2))):max(1, round(year2 * (1/2))), ] %>%
         melt() %>%
-        rownames_to_column(var = "Species")
+        rownames_to_column(var = "Species") %>%
+        group_by(Species) %>%
+        summarize(value = mean(value, na.rm = TRUE))
       
-      highunbiotrip <- unharvestedbiotriple[year * 2, ] %>%
+      highunbiotrip <- unharvestedbiotriple[(year1 * 2):(year2 * 2), ] %>%
         melt() %>%
-        rownames_to_column(var = "Species")
+        rownames_to_column(var = "Species") %>%
+        group_by(Species) %>%
+        summarize(value = mean(value, na.rm = TRUE))
       
       # Calculate harvested biomass at different time points
       harvestedbiotriple <- getBiomass(harvestedprojection)
@@ -531,6 +546,124 @@ server <- function(input, output, session) {
       )
   }
   
+  
+  #THis function plots the the yields as a pie chart of the species / fleet aggregations
+  #I should have a button underneath this to change it to plot on fleet basis - on species basis - separated fleet
+  
+  yieldplottingfunctions <- function(harvested, unharvested, timerange1, timerange2, plottype) {
+    
+    if (plottype == "fleet") {
+      
+      #getting yield per gear then reformating to work with rest of the code,
+      #plus subsetting by year
+      
+      harv <- as.data.frame(as.table(getYieldGear(harvested)[c(timerange1, timerange2),,]))%>%
+        group_by(gear)%>%
+        summarise(value=mean(Freq))%>%
+        subset(value>0)
+      
+      unharv <-as.data.frame(as.table(getYieldGear(unharvested)[c(timerange1, timerange2),,]))%>%
+        group_by(gear)%>%
+        summarise(value=mean(Freq))%>%
+        subset(value>0)
+      
+      fig <- plot_ly()
+      fig <- fig %>% add_pie(data = harv, labels = ~gear, values = ~value,
+                             name = "harv", domain = list(row = 0, column = 0),
+                             title = "Changed Strategy Yield")
+      fig <- fig %>% add_pie(data = unharv, labels = ~gear, values = ~value,
+                             name = "unharv", domain = list(row = 0, column = 1),
+                             title = "Current Strategy Yield")
+      
+      fig <- fig %>% layout(showlegend = T,
+                            grid = list(rows = 1, columns = 2),
+                            xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                            yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+      fig
+      
+    } else if (plottype == "species") {
+      
+      harv <- as.data.frame(as.table(getYield(harvested)[c(timerange1, timerange2),]))%>%
+        group_by(sp)%>%
+        summarise(value=mean(Freq))%>%
+        rename(gear = sp)%>%
+        subset(value>0)
+      
+      unharv <- as.data.frame(as.table(getYield(unharvested)[c(timerange1, timerange2),]))%>%
+        group_by(sp)%>%
+        summarise(value=mean(Freq))%>%
+        rename(gear = sp)%>%
+        subset(value>0)
+      
+      fig <- plot_ly()
+      fig <- fig %>% add_pie(data = harv, labels = ~gear, values = ~value,
+                             name = "harv", domain = list(row = 0, column = 0),
+                             title = "Changed Strategy Yield")
+      fig <- fig %>% add_pie(data = unharv, labels = ~gear, values = ~value,
+                             name = "unharv", domain = list(row = 0, column = 1),
+                             title = "Current Strategy Yield")
+      
+      
+      fig <- fig %>% layout(showlegend = T,
+                            grid = list(rows = 1, columns = 2),
+                            xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                            yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+      return(fig)
+      
+    } else if (plottype == "singlefleet") {
+      
+      harv <- as.data.frame(as.table(getYieldGear(harvested)[c(timerange1, timerange2),,]))
+      unharv <-as.data.frame(as.table(getYieldGear(unharvested)[c(timerange1, timerange2),,]))
+      
+      harv <- split(harv, harv$gear)
+      unharv <- split(unharv, unharv$gear)
+      
+      fig <- plot_ly()
+      
+      for (i in seq_along(harv)) {
+        
+        gear_name <- names(harv)[i] 
+        
+        averaged_data <- harv[[gear_name]] %>%
+          group_by(sp) %>%
+          summarise(value = mean(Freq))
+        colnames(averaged_data) <- c("gear", "value")
+        
+        fig <- fig %>% add_pie(data = averaged_data, labels = ~gear, values = ~value,
+                               title = list(text = paste("Changed", gear_name)),
+                               textinfo = "none",
+                               name = gear_name, domain = list(row = 0, column = i))
+        
+      }
+      for (i in seq_along(unharv)) {
+        
+        gear_name <- names(unharv)[i] 
+        
+        averaged_data <- unharv[[gear_name]] %>%
+          group_by(sp) %>%
+          summarise(value = mean(Freq))
+        colnames(averaged_data) <- c("gear", "value")
+        
+        
+        fig <- fig %>% add_pie(data = averaged_data, labels = ~gear, values = ~value,
+                               title = gear_name,
+                               textinfo = "none",
+                               name = gear_name, domain = list(row = 1, column = i))
+        
+      }
+      
+      fig <- fig %>% layout(showlegend = T,
+                            grid=list(rows=2, columns=length(harv)),
+                            xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                            yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+      fig
+      
+    } else {
+      
+      stop("Invalid plot type specified")
+    }
+    
+  }
   
   
   
@@ -813,22 +946,26 @@ server <- function(input, output, session) {
     # Define total number of steps to split progress
     total_steps <- 7
     
-    # Step 1: Initial unharvested projection
-    progress$inc(amount = 1 / total_steps, message = "Running unharvested projection...")
-    unharvested <- plotSpectra(unharvestedprojection, time_range = input$year[1]:input$year[2], return_data = TRUE)
+ 
+       # Step 1: Initial unharvested projection
+ 
+    #removed, wasnt necessary, it is now loaded prior.
     
     # Step 2: Adjust biomass
     progress$inc(amount = 1 / total_steps, message = "Adjusting biomass...")
+    
     speciessim@initial_n[input$species_name_select, ] <- speciessim@initial_n[input$species_name_select, ] * input$species
     
     # Step 3: Run harvested projection
     progress$inc(amount = 1 / total_steps, message = "Running harvested projection...")
     harvestedprojection <- project(speciessim,
-                                   effort = c(commercial = 0, pelagic = 1, beam = 1, otter = 1),
+                                   effort = celticsim@initial_effort,
                                    t_max = input$year[2]*2)
     
     # Step 4: Calculate size spectrum
     progress$inc(amount = 1 / total_steps, message = "Calculating size spectrum...")
+    
+    #this has been checked - it runs properly with time ranges
     sizelevel <- plotSpectraRelative(harvestedprojection, unharvestedprojection, input$year[1], input$year[2])
     
     # Step 5: Calculate species level change
@@ -895,7 +1032,7 @@ server <- function(input, output, session) {
     # Step 3: Run harvested projection
     progress$inc(amount = 1 / total_steps, message = "Running harvested projection...")
     harvestedprojection <- project(speciessim,
-                                   effort = c(commercial = 0, pelagic = 1, beam = 1, otter = 1),
+                                   effort = celticsim@initial_effort,
                                    t_max = input$mortyear[2] * 2)
     
     # Step 4: Plot relative size spectrum
@@ -1009,13 +1146,20 @@ server <- function(input, output, session) {
     plotDiet(harvestedprojection@params, species = input$fish_name_select)
   })
   
+  #This is for the different plots of yield.
+  output$yieldPlot <- renderPlotly({
+    if (input$YieldChoice == "Fleet") {
+      yieldplottingfunctions(spectra()$harvestedprojection, unharvestedprojection, input$fishyear[1], input$fishyear[2], "fleet")
+    } else if (input$YieldChoice == "SoloFleet") {
+      yieldplottingfunctions(spectra()$harvestedprojection, unharvestedprojection, input$fishyear[1], input$fishyear[2], "singlefleet")
+    } else if (input$YieldChoice == "Species") {
+      yieldplottingfunctions(spectra()$harvestedprojection, unharvestedprojection, input$fishyear[1], input$fishyear[2], "species")
+    }
+  })
   
   #this is just plotting the outputs of spectra
   output$spectrumPlot <- renderPlotly({
     spectra()$spectrum
-  })
-  output$yieldPlot <- renderPlotly({
-    spectra()$yield
   })
   output$fishspeciesPlot <- renderPlotly({
     spectra()$specieslevel+scale_x_discrete(limits = ordered_species())
@@ -1074,14 +1218,14 @@ server <- function(input, output, session) {
         
         test <- getExtMort(speciessim)
         totalmort <- getMort(speciessim)
-        test[input$breakname_select, ] <- test[input$breakname_select, ] + (breakpoints$mort[i] * totalmort[input$breakname_select, ])
+        test[input$breakname_select_mort, ] <- test[input$breakname_select_mort, ] + (breakpoints$mort[i] * totalmort[input$breakname_select_mort, ])
         ext_mort(speciessim) <- test
       } else if (input$breakpoint_tabpanel == "Biomass") {
         speciessim@initial_n[input$breakname_select, ] <- speciessim@initial_n[input$breakname_select, ] * breakpoints$mort[i]
       }
       
       harvestedprojection <- project(speciessim,
-                                     effort = c(commercial = 0, pelagic = 1, beam = 1, otter = 1),
+                                     effort = celticsim@initial_effort,
                                      t_max = breakpoints$time[i])
       
       harvestedbio <- getBiomass(harvestedprojection)
@@ -1421,9 +1565,9 @@ ui <- fluidPage(
                   label = "Select a Species:",
                   choices = NULL
                 )%>%tagAppendAttributes(id = "species_chose"),
-                actionButton(inputId = "set_year_5", label = "5 Years", class = "btn-small"),
-                actionButton(inputId = "set_year_15", label = "15 Years", class = "btn-small"),
-                actionButton(inputId = "set_year_30", label = "30 Years", class = "btn-small"),
+                actionButton(inputId = "set_year_5", label = "3 Years", class = "btn-small"),
+                actionButton(inputId = "set_year_15", label = "6 Years", class = "btn-small"),
+                actionButton(inputId = "set_year_30", label = "12 Years", class = "btn-small"),
                 actionButton(inputId = "goButton1", label = "Run Simulation")
               )
             ),
@@ -1546,9 +1690,9 @@ ui <- fluidPage(
                          label = "Select a Species:",
                          choices = NULL
                        )%>%tagAppendAttributes(id="species_choose_mort"),
-                       actionButton(inputId = "mortset_year_5", label = "5 Years", class = "btn-small"),
-                       actionButton(inputId = "mortset_year_15", label = "15 Years", class = "btn-small"),
-                       actionButton(inputId = "mortset_year_30", label = "30 Years", class = "btn-small"),
+                       actionButton(inputId = "mortset_year_5", label = "3 Years", class = "btn-small"),
+                       actionButton(inputId = "mortset_year_15", label = "6 Years", class = "btn-small"),
+                       actionButton(inputId = "mortset_year_30", label = "12 Years", class = "btn-small"),
                        actionButton(inputId = "goButton3", label = "Run Simulation")
                      )
                    ),
@@ -1686,9 +1830,9 @@ ui <- fluidPage(
                   label = "Select a Species:",
                   choices = NULL
                 )%>%tagAppendAttributes(id = "breakname_select"),
-                actionButton(inputId = "breakset_year_5", label = "5 Years", class = "btn-small"),
-                actionButton(inputId = "breakset_year_15", label = "15 Years", class = "btn-small"),
-                actionButton(inputId = "breakset_year_30", label = "30 Years", class = "btn-small"),
+                actionButton(inputId = "breakset_year_5", label = "3 Years", class = "btn-small"),
+                actionButton(inputId = "breakset_year_15", label = "6 Years", class = "btn-small"),
+                actionButton(inputId = "breakset_year_30", label = "12 Years", class = "btn-small"),
                 actionButton(inputId = "goButton", label = "Run Simulation")
               )
             ),
@@ -1770,13 +1914,13 @@ ui <- fluidPage(
                   value = 10
                 )%>%tagAppendAttributes(id = "breaknumber"),
                 selectInput(
-                  inputId = "breakname_select",
+                  inputId = "breakname_select_mort",
                   label = "Select a Species:",
                   choices = NULL
                 )%>%tagAppendAttributes(id = "breakname_select_mort"),
-                actionButton(inputId = "breakset_year_5", label = "5 Years", class = "btn-small"),
-                actionButton(inputId = "breakset_year_15", label = "15 Years", class = "btn-small"),
-                actionButton(inputId = "breakset_year_30", label = "30 Years", class = "btn-small"),
+                actionButton(inputId = "breakset_year_5", label = "3 Years", class = "btn-small"),
+                actionButton(inputId = "breakset_year_15", label = "6 Years", class = "btn-small"),
+                actionButton(inputId = "breakset_year_30", label = "12 Years", class = "btn-small"),
                 actionButton(inputId = "goButton", label = "Run Simulation")
               )
             ),
@@ -1883,6 +2027,9 @@ ui <- fluidPage(
                 step = 0.1,
                 width = "100%"
               )),
+            actionButton(inputId = "fish_set_year_5", label = "3 Years", class = "btn-small"),
+            actionButton(inputId = "fish_set_year_15", label = "6 Years", class = "btn-small"),
+            actionButton(inputId = "fish_set_year_30", label = "12 Years", class = "btn-small"),
             actionButton(inputId = "goButton2", label = "Run Simulation")
           )
           
@@ -1908,7 +2055,15 @@ ui <- fluidPage(
                     conditionalPanel(
                       condition = "input.fishy_plots == 'Yield'",
                       h4("Legend"),
-                      p("Yield of each of the species across time")
+                      p("Yield of each of the species across time"),
+                      br(),
+                      h4(HTML("Yield Plot Showed <button id='infoButtonOrder' class='btn btn-info btn-xs' type='button' style='padding-left: 7px;' data-toggle='popover' data-content='Choose the yield plot to show - Fleet is the yield composition across each fleet.
+                              Species is the total yield composition of species across fleets. SoloFleet is the species compositions in each given fleet. '><strong>?</strong></button>")),
+                      selectInput(
+                        inputId = "YieldChoice",
+                        label = NULL,
+                        choices = c("Fleet", "SoloFleet", "Species")
+                      )
                     ),
                     
                     # Conditional panel for "Species"

@@ -433,11 +433,13 @@ server <- function(input, output, session) {
       
       harv <- as.data.frame(as.table(getYieldGear(harvested)[c(timerange1, timerange2),,]))%>%
         group_by(gear)%>%
-        summarise(value=mean(Freq))
+        summarise(value=mean(Freq))%>%
+        subset(value>0)
       
       unharv <-as.data.frame(as.table(getYieldGear(unharvested)[c(timerange1, timerange2),,]))%>%
         group_by(gear)%>%
-        summarise(value=mean(Freq))
+        summarise(value=mean(Freq))%>%
+        subset(value>0)
 
       fig <- plot_ly()
       fig <- fig %>% add_pie(data = harv, labels = ~gear, values = ~value,
@@ -446,7 +448,11 @@ server <- function(input, output, session) {
                              name = "unharv", domain = list(row = 0, column = 1))
       
       fig <- fig %>% layout(showlegend = T,
-                            grid=list(rows=2, columns=2),
+                            grid = list(rows = 1, columns = 2),
+                            annotations = list(
+                              list(x = 0.18, y = 0.8, text = "Changed Strategy Yield", showarrow = FALSE, font = list(size = 14)),
+                              list(x = 0.82, y = 0.8, text = "Current Strategy Yield", showarrow = FALSE, font = list(size = 14))
+                            ),
                             xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
                             yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
       fig
@@ -456,21 +462,29 @@ server <- function(input, output, session) {
       harv <- as.data.frame(as.table(getYield(harvested)[c(timerange1, timerange2),]))%>%
         group_by(sp)%>%
         summarise(value=mean(Freq))%>%
-        rename(gear = sp)
+        rename(gear = sp)%>%
+        subset(value>0)
       
       unharv <- as.data.frame(as.table(getYield(unharvested)[c(timerange1, timerange2),]))%>%
         group_by(sp)%>%
         summarise(value=mean(Freq))%>%
-        rename(gear = sp)
+        rename(gear = sp)%>%
+        subset(value>0)
 
       fig <- plot_ly()
       fig <- fig %>% add_pie(data = harv, labels = ~gear, values = ~value,
-                             name = "harv", domain = list(row = 0, column = 0))
+                             name = "harv", domain = list(row = 0, column = 0),
+                             textinfo = 'none')
       fig <- fig %>% add_pie(data = unharv, labels = ~gear, values = ~value,
-                             name = "unharv", domain = list(row = 0, column = 1))
+                             name = "unharv", domain = list(row = 0, column = 1),
+                             textinfo = 'none')
       
       fig <- fig %>% layout(showlegend = T,
-                            grid=list(rows=2, columns=2),
+                            grid = list(rows = 1, columns = 2),
+                            annotations = list(
+                              list(x = 0.18, y = 0.8, text = "Changed Strategy Species %", showarrow = FALSE, font = list(size = 14)),
+                              list(x = 0.82, y = 0.8, text = "Current Strategy Species %", showarrow = FALSE, font = list(size = 14))
+                            ),
                             xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
                             yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
       return(fig)
@@ -495,6 +509,7 @@ server <- function(input, output, session) {
         colnames(averaged_data) <- c("gear", "value")
 
         fig <- fig %>% add_pie(data = averaged_data, labels = ~gear, values = ~value,
+                               title = list(text = paste("Changed", gear_name)),
                                textinfo = "none",
                                name = gear_name, domain = list(row = 0, column = i))
         
@@ -510,7 +525,8 @@ server <- function(input, output, session) {
 
         
         fig <- fig %>% add_pie(data = averaged_data, labels = ~gear, values = ~value,
-                               textinfo = "inside",
+                               title = gear_name,
+                               textinfo = "none",
                                name = gear_name, domain = list(row = 1, column = i))
         
       }
