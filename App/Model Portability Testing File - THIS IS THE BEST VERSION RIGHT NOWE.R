@@ -261,7 +261,7 @@ server <- function(input, output, session) {
   
   
   #loading in the model 
-  celticsim <- readRDS("Lauria1.rds")
+  celticsim <- readRDS("Celtic_16_untuned.rds")
   
   
   #changing the species options to dynamically change depending on the model
@@ -342,9 +342,15 @@ server <- function(input, output, session) {
   #for the species plots with the time range, it needs to be 2 times this amount.
   #it uses fishing strategies of 0,1,1,1 for each fleet.
   
-  #load("unharvestedprojection")
-  #This doesnt work, because theyre adding a new model means it will need to be changed
   
+  #This is how I save it. 
+  #save(unharvestedprojection <- project(celticsim, t_max = 200, effort = celticsim@initial_effort),
+  #file = "unharvestedprojection.rdata")
+  
+  #This is how I load it.
+  #load("unharvestedprojection.rdata")
+  
+  #Otherwise, this code here runs it again. 
   unharvestedprojection <- project(celticsim, t_max = 200,
                                    effort = celticsim@initial_effort)
   
@@ -401,7 +407,9 @@ server <- function(input, output, session) {
             axis.text.y = element_text(size = 14),
             legend.position = "none",
             axis.title.x = element_text(size = 16),
-            axis.title.y = element_text(size = 16))
+            axis.title.y = element_text(size = 16))+
+      #This is limiting the code to the size range we care about in the app.
+      xlim(NA, 10000)
     
     return(sf)
   }
@@ -491,7 +499,9 @@ server <- function(input, output, session) {
       unharvestedbiotriple <- getBiomass(unharvestedprojection)
       
       #the range has to be 1-2, becuase if it is 1-1 it messes with the way the data is formatted.
-      lowunbiotrip <- unharvestedbiotriple[max(1, round(year1 * (1/2))):max(2, round(year2 * (1/2))), ] %>%
+      #i have also used ceiling here, because using round means they round to nearest even number, so some cases (11:13)
+      #end up as 6:6 for the lowbiotrip - this does not work for the code format.
+      lowunbiotrip <- unharvestedbiotriple[max(1, ceiling(year1 * (1/2))):max(2, ceiling(year2 * (1/2))), ] %>%
         melt() %>%
         group_by(sp) %>%
         summarize(value = mean(value, na.rm = TRUE))
@@ -504,7 +514,7 @@ server <- function(input, output, session) {
       # Calculate harvested biomass at different time points
       harvestedbiotriple <- getBiomass(harvestedprojection)
       
-      lowbiotrip <- harvestedbiotriple[max(1, round(year1 * (1/2))):max(2, round(year2 * (1/2))),] %>%
+      lowbiotrip <- harvestedbiotriple[max(1, ceiling(year1 * (1/2))):max(2, ceiling(year2 * (1/2))),] %>%
         melt() %>%
         group_by(sp) %>%
         summarize(value = mean(value, na.rm = TRUE))
@@ -654,6 +664,11 @@ server <- function(input, output, session) {
         
         gear_name <- names(harv)[i] 
         
+        #this is necessary as for some reason the survey gear is plotted differently, which messes with the layout.
+        if (gear_name == "survey") {
+          next 
+        }
+        
         averaged_data <- harv[[gear_name]] %>%
           group_by(sp) %>%
           summarise(value = mean(Freq))
@@ -668,6 +683,10 @@ server <- function(input, output, session) {
       for (i in seq_along(unharv)) {
         
         gear_name <- names(unharv)[i] 
+        
+        if (gear_name == "survey") {
+          next  
+        }
         
         averaged_data <- unharv[[gear_name]] %>%
           group_by(sp) %>%
@@ -1148,9 +1167,14 @@ server <- function(input, output, session) {
     on.exit(progress$close())
     progress$set(message = "Running simulation...", value = 0)
     
-    # Step 1: Running the simulation
+    # Step 1: Running the simulation and changing effort
     speciessim <- celticsim
-    effort <- c(commercial = input$industrial, pelagic = input$pelagic, beam = input$beam, otter = input$otter)
+    effort <- speciessim@initial_effort
+    effort["commercial"] <- input$industrial
+    effort["pelagic"] <- input$pelagic
+    effort["beam"] <- input$beam
+    effort["otter"] <- input$otter
+
     harvestedprojection <- project(speciessim, effort = effort, t_max = time2 * 2)
     
     # Update progress (20% complete)
@@ -1261,7 +1285,7 @@ server <- function(input, output, session) {
   #Plotting breakpoints for the mortality increases
   #this generates the values of biomass/mortality change
   breaks <- eventReactive(input$goButton,{
-    
+  
     
     if (input$breakpoint_tabpanel == "Mortality") {
       
@@ -1299,7 +1323,6 @@ server <- function(input, output, session) {
     breakpoints <- breaks()
     breaksim <- data.frame()
     
-    celticsim <- readRDS("Celtic_16_untuned.rds")
     speciessim <- celticsim
     
     for (i in 1:nrow(breakpoints)) {
@@ -1340,12 +1363,11 @@ server <- function(input, output, session) {
     sims <- breaksim()
     breakpoints <- breaks()
     
-    unharvestedprojection <- project(celticsim,
-                                     effort = celticsim@initial_effort,
-                                     t_max = breakpoints$time2[1])
+    #unharvestedprojectionbreaks <- project(celticsim,
+    #                                 effort = celticsim@initial_effort,
+     #                                t_max = breakpoints$time2[1])
     
     unharvestedbio <- getBiomass(unharvestedprojection)
-    
     unharvestedbio <- melt(unharvestedbio[breakpoints$time1[1]:breakpoints$time2[1],])%>%
       group_by(sp)%>%
       summarise(value = mean(value))%>%
@@ -1357,7 +1379,7 @@ server <- function(input, output, session) {
       mutate(normalized_value = ((value.x / value.y) - 1) * 100) %>%
       select(Species, normalized_value, sim) %>%
       filter(!Species %in% c("2", "4", "6", "8", "16", "17", "18", "19", "20", "Resource"))
-    
+
     return(normalized_data)
   }
   
@@ -1487,7 +1509,7 @@ server <- function(input, output, session) {
 
 
 
-# NOTE - FOR UI, a code has tagAppendAttributes, which makes it confusing, but it is necessary 
+# NOTE - FOR UI, all of the code has tagAppendAttributes, which makes it confusing, but it is necessary 
 #as you have to label the sections of the code to be able to put it into the tutorial of the app.
 
 ui <- fluidPage(
@@ -1677,7 +1699,7 @@ ui <- fluidPage(
                   tabPanel(title = "Species", plotlyOutput("speciesPlot")),
                   tabPanel(title = "Size", plotlyOutput("sizePlot")),
                   tabPanel(title = "Guilds", plotlyOutput("guildPlot")),
-                  tabPanel(title = "Diet", plotlyOutput("dietPlot"))
+                  #tabPanel(title = "Diet", plotlyOutput("dietPlot"))
                 )
               ),
               card_body(
@@ -1804,7 +1826,7 @@ ui <- fluidPage(
                          tabPanel(title = "Species", plotlyOutput("mortspeciesPlot")),
                          tabPanel(title = "Size", plotlyOutput("mortsizePlot")),
                          tabPanel(title = "Guilds", plotlyOutput("mortguildPlot")),
-                         tabPanel(title = "Diet", plotlyOutput("mortdietPlot"))
+                         #tabPanel(title = "Diet", plotlyOutput("mortdietPlot"))
                        )
                      ),
                      card_body(
@@ -2142,10 +2164,10 @@ ui <- fluidPage(
                       tabPanel(title = "Species", plotlyOutput("fishspeciesPlot")),
                       tabPanel(title = "Size", plotlyOutput("fishsizePlot")),
                       tabPanel(title = "Guild", plotlyOutput("fishguildPlot")),
-                      tabPanel(title = "Diet", plotlyOutput("fishdietPlot")),
+                      #tabPanel(title = "Diet", plotlyOutput("fishdietPlot")),
                       tabPanel(title = "Spectra", plotlyOutput("spectrumPlot")),
                       tabPanel(title = "Single Diet", plotlyOutput("fishdietsinglePlot")),
-                      tabPanel(title = "Biomass", plotlyOutput("fishbiomassPlot"))
+                      #tabPanel(title = "Biomass", plotlyOutput("fishbiomassPlot"))
                     )
                   ),
                   card_body(
